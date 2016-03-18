@@ -14,9 +14,8 @@ fi
 init()
 {
 echo -e "Get your Access Token here: http://t.cn/RGdxd3z\n"
-echo "Please input the Access Token:"
-read -r ACCESS_TOKEN1
-echo "ACCESS_TOKEN=\"$ACCESS_TOKEN1\"" > ./.netdisk.conf
+read -p "Please input the Access Token: " ACCESS_TOKEN
+echo "ACCESS_TOKEN=\"$ACCESS_TOKEN\"" > ./.netdisk.conf
 echo -e "\n Done!"
 }
 
@@ -55,6 +54,15 @@ elif [[ $1 -le "1099511627776" ]]; then
     else
         size=$(awk "BEGIN{print $1/1024.0/1024.0/1024.0 }" | cut -c 1-6)
         size=$(echo "$size"GB)
+        echo $size
+    fi
+elif [[ $1 -le "1125899906842624" ]]; then
+    if [[ $1 -eq "1125899906842624" ]]; then
+        size="1PB"
+        echo $size
+    else
+        size=$(awk "BEGIN{print $1/1024.0/1024.0/1024.0/1024.0 }" | cut -c 1-6)
+        size=$(echo "$size"TB)
         echo $size
     fi
 else
@@ -97,15 +105,81 @@ echo -e "\nFolder:$folder_count     File:$file_count"
 rm .folder_info .file_info
 }
 
+quota()
+{
+check
+quota_result=$(curl -s "http://api.189.cn/ChinaTelecom/getUserInfo.action?app_id=$APP_ID&access_token=$ACCESS_TOKEN")
+capacity_space=$(echo $quota_result | jq ".capacity")
+available_space=$(echo $quota_result | jq ".available")
+used_space=$(expr $capacity_space - $available_space)
+capacity_space=$(size $capacity_space)
+available_space=$(size $available_space)
+used_space=$(size $used_space)
+echo "Total:     $capacity_space"
+echo "Used:      $used_space"
+echo "Available: $available_space"
+}
+
+download()
+{
+check
+dl_result=$(curl -s "http://api.189.cn/ChinaTelecom/listFiles.action?app_id=$APP_ID&access_token=$ACCESS_TOKEN")
+dl_folder_count=$(echo $dl_result | jq ".fileList.folder" | grep id | wc -l)
+dl_file_count=$(echo $dl_result | jq ".fileList.count")
+dl_file_index=$(expr $dl_file_count - $dl_folder_count - 1)
+
+while [[ $dl_file_index -ge 0 ]];
+do
+    dl_file_name=$(echo $dl_result | jq ".fileList.file[$dl_file_index].name")
+    dl_file_name=$(echo ${dl_file_name#\"}) && dl_file_name=$(echo ${dl_file_name%\"})
+    echo -e $dl_file_name"\t"$dl_file_index >> .dl_info
+    dl_file_index=$(expr $dl_file_index - 1)
+done
+
+printf "%-45s %23s \n" Name ID
+printf "%-45s\t %20s \n" $(cat .dl_info)
+echo -e "\n"
+read -p "Input the file id(only one): " dl_id
+rm .dl_info
+
+dl_file_id=$(echo $dl_result | jq ".fileList.file[$dl_id].id")
+dl_file_name2=$(echo $dl_result | jq ".fileList.file[$dl_id].name")
+dl_file_name2=$(echo ${dl_file_name2#\"}) && dl_file_name2=$(echo ${dl_file_name2%\"})
+dl_file_size=$(echo $dl_result | jq ".fileList.file[$dl_id].size")
+dl_file_size=$(size $dl_file_size)
+dl_file_md5=$(echo $dl_result | jq ".fileList.file[$dl_id].md5")
+dl_file_md5=$(echo ${dl_file_md5#\"}) && dl_file_md5=$(echo ${dl_file_md5%\"})
+dl_file_url=$(curl -s "http://api.189.cn/ChinaTelecom/getFileDownloadUrl.action?app_id=$APP_ID&access_token=$ACCESS_TOKEN&fileId=$dl_file_id")
+dl_file_url=$(echo $dl_file_url | jq ".fileDownloadUrl")
+dl_file_url=$(echo ${dl_file_url#\"}) && dl_file_url=$(echo ${dl_file_url%\"})
+
+echo -e "\n"
+echo "File name: $dl_file_name2"
+echo "File size: $dl_file_size"
+echo "File MD5:  $dl_file_md5"
+echo -e "\nDownload begin..."
+echo -e "\n"
+
+wget -O "$dl_file_name2" "$dl_file_url"
+
+echo -e "\n"
+echo "Done!"
+}
+
+
 if [[ $1 == "ls" ]]; then
     list_file
 elif [[ $1 == "init" ]]; then
     init
-elif [[ $1 == "test" ]]; then
-    echo $(size $2)
+elif [[ $1 == "quota" ]]; then
+    quota
+elif [[ $1 == "download" ]]; then
+    download
 else
     echo "Usage:"
-    echo "init    Initialization."
-    echo "ls      List files and folders."
+    echo "init         Initialization."
+    echo "ls           List files and folders."
+    echo "quota        Show the quotas."
+    echo "download     Download guide."
     exit
 fi
