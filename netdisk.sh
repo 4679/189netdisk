@@ -122,6 +122,7 @@ echo "Available: $available_space"
 
 download()
 {
+check
 dl_result=$(curl -s "http://api.189.cn/ChinaTelecom/listFiles.action?app_id=$APP_ID&access_token=$ACCESS_TOKEN")
 dl_folder_count=$(echo $dl_result | jq ".fileList.folder" | grep id | wc -l)
 dl_file_count=$(echo $dl_result | jq ".fileList.count")
@@ -137,7 +138,9 @@ done
 
 printf "%-45s %23s \n" Name ID
 printf "%-45s\t %20s \n" $(cat .dl_info)
+echo -e "\n"
 read -p "Input the file id(only one): " dl_id
+rm .dl_info
 
 dl_file_id=$(echo $dl_result | jq ".fileList.file[$dl_id].id")
 dl_file_name2=$(echo $dl_result | jq ".fileList.file[$dl_id].name")
@@ -159,6 +162,7 @@ echo -e "\n"
 
 wget -O "$dl_file_name2" "$dl_file_url"
 
+echo -e "\n"
 echo "Done!"
 }
 
