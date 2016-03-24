@@ -166,6 +166,52 @@ echo -e "\n"
 echo "Done!"
 }
 
+dl-url()
+{
+check
+dl_result=$(curl -s "http://api.189.cn/ChinaTelecom/listFiles.action?app_id=$APP_ID&access_token=$ACCESS_TOKEN")
+dl_folder_count=$(echo $dl_result | jq ".fileList.folder" | grep id | wc -l)
+dl_file_count=$(echo $dl_result | jq ".fileList.count")
+dl_file_index=$(expr $dl_file_count - $dl_folder_count - 1)
+
+while [[ $dl_file_index -ge 0 ]];
+do
+    dl_file_name=$(echo $dl_result | jq ".fileList.file[$dl_file_index].name")
+    dl_file_name=$(echo ${dl_file_name#\"}) && dl_file_name=$(echo ${dl_file_name%\"})
+    echo -e $dl_file_name"\t"$dl_file_index >> .dl_info
+    dl_file_index=$(expr $dl_file_index - 1)
+done
+
+printf "%-45s %23s \n" Name ID
+printf "%-45s\t %20s \n" $(cat .dl_info)
+echo -e "\n"
+read -p "Input the file id(only one): " dl_id
+rm .dl_info
+
+dl_file_id=$(echo $dl_result | jq ".fileList.file[$dl_id].id")
+dl_file_name2=$(echo $dl_result | jq ".fileList.file[$dl_id].name")
+dl_file_name2=$(echo ${dl_file_name2#\"}) && dl_file_name2=$(echo ${dl_file_name2%\"})
+dl_file_size=$(echo $dl_result | jq ".fileList.file[$dl_id].size")
+dl_file_size=$(size $dl_file_size)
+dl_file_md5=$(echo $dl_result | jq ".fileList.file[$dl_id].md5")
+dl_file_md5=$(echo ${dl_file_md5#\"}) && dl_file_md5=$(echo ${dl_file_md5%\"})
+dl_file_url=$(curl -s "http://api.189.cn/ChinaTelecom/getFileDownloadUrl.action?app_id=$APP_ID&access_token=$ACCESS_TOKEN&fileId=$dl_file_id")
+dl_file_url=$(echo $dl_file_url | jq ".fileDownloadUrl")
+dl_file_url=$(echo ${dl_file_url#\"}) && dl_file_url=$(echo ${dl_file_url%\"})
+
+echo -e "\n"
+echo "File name: $dl_file_name2"
+echo "File size: $dl_file_size"
+echo "File MD5:  $dl_file_md5"
+echo -e "\n"
+
+echo -e "$dl_file_name2""\n""$dl_file_url""\n" >> url.txt
+echo -e "\nDownload links saved to url.txt"
+
+echo -e "\n"
+echo "Done!"
+}
+
 
 if [[ $1 == "ls" ]]; then
     list_file
@@ -175,11 +221,14 @@ elif [[ $1 == "quota" ]]; then
     quota
 elif [[ $1 == "download" ]]; then
     download
+elif [[ $1 == "dl-url" ]]; then
+    dl-url
 else
     echo "Usage:"
     echo "init         Initialization."
     echo "ls           List files and folders."
     echo "quota        Show the quotas."
     echo "download     Download guide."
+    echo "dl-url       Get download links."
     exit
 fi
